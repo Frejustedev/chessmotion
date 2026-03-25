@@ -15,8 +15,9 @@ services:
         value: "3.11"
 
   # ── Frontend (Next.js Static Export) ─────────────────────────────────────────
-  - type: static
+  - type: web
     name: chessmotion-frontend
+    env: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: out
