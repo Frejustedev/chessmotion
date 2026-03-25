@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.env
+
+# Backend generated files
+backend/temp/
+backend/output/
+
+# Cached piece images (downloaded at runtime from Lichess CDN)
+backend/assets/pieces/
+backend/assets/sounds/
+
+# Node / Next.js
+node_modules/
+.next/
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
