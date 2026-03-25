@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     OUTPUT_DIR: Path = Path("./output")
     ASSETS_DIR: Path = Path("./assets")
 
-    # Stored as comma-separated string in .env: "http://localhost:3000,http://localhost:3001"
+    # Comma-separated: "http://localhost:3000,https://chessmotion.vercel.app"
+    # Use "*" in ALLOWED_ORIGINS to allow all origins in production
     ALLOWED_ORIGINS: str = "http://localhost:3000"
 
     STOCKFISH_PATH: str = ""
