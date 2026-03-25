@@ -1,15 +1,19 @@
 FROM python:3.11-slim
 
-# System dependencies: libcairo for cairosvg, ffmpeg for moviepy fallback
+# System dependencies for cairosvg (cairo, pango) — required
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \
     libffi-dev \
     shared-mime-info \
-    stockfish \
     && rm -rf /var/lib/apt/lists/*
+
+# Stockfish — optional, installed separately so its failure doesn't break the image
+RUN apt-get update && apt-get install -y --no-install-recommends stockfish \
+    && rm -rf /var/lib/apt/lists/* \
+    || (rm -rf /var/lib/apt/lists/* && echo "Stockfish not available - eval bar will be disabled")
 
 WORKDIR /app
 
