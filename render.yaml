@@ -15,13 +15,11 @@ services:
         value: "3.11"
 
   # ── Frontend (Next.js Static Export) ─────────────────────────────────────────
-  - type: web
+  - type: static
     name: chessmotion-frontend
-    runtime: node
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: out
-    plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
         value: https://chessmotion-backend.onrender.com
