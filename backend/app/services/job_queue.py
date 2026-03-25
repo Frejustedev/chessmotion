@@ -114,10 +114,43 @@ class RenderQueue:
                      message="Rendering frames...")
 
         try:
+            # ── Phase 0a: Stockfish evaluation (optional) ─────────────────────
+            enriched_moves = list(game.moves)
+            if cfg.show_eval_bar:
+                self._update(job_id, progress=5, message="Analysing positions with Stockfish...")
+                from app.services.stockfish_eval import evaluate_positions
+                fens = [game.starting_fen] + [m.fen_after for m in game.moves]
+                scores = evaluate_positions(fens[:-1], depth=12)  # eval before each move
+                for i, move in enumerate(enriched_moves):
+                    if i < len(scores):
+                        enriched_moves[i] = move.model_copy(update={"eval_score": scores[i]})
+                logger.info(f"[JobQueue] Stockfish evaluated {len(scores)} positions")
+
+            # ── Phase 0b: AI commentary (optional) ───────────────────────────
+            if cfg.commentary_style != "none":
+                self._update(job_id, progress=10, message=f"Generating {cfg.commentary_style} commentary...")
+                from app.services.commentary import generate_move_comment
+                fens_before = [game.starting_fen] + [m.fen_after for m in game.moves[:-1]]
+                for i, move in enumerate(enriched_moves):
+                    eval_before = enriched_moves[i - 1].eval_score if i > 0 else None
+                    comment = generate_move_comment(
+                        move_uci=move.uci,
+                        fen_before=fens_before[i],
+                        fen_after=move.fen_after,
+                        style=cfg.commentary_style.value,
+                        move_number=i + 1,
+                        eval_before=eval_before,
+                        eval_after=move.eval_score,
+                    )
+                    if comment:
+                        enriched_moves[i] = enriched_moves[i].model_copy(update={"comment": comment})
+                logger.info(f"[JobQueue] Generated commentary for {len(enriched_moves)} moves")
+
             # ── Phase 1: render frames ────────────────────────────────────────
+            game_enriched = game.model_copy(update={"moves": enriched_moves})
             renderer = BoardRenderer(cfg)
             frames = renderer.render_frames_for_game(
-                moves=game.moves,
+                moves=game_enriched.moves,
                 white_name=game.white.name,
                 black_name=game.black.name,
                 white_rating=game.white.rating,
@@ -130,7 +163,7 @@ class RenderQueue:
             # ── Phase 2: assemble video/GIF ────────────────────────────────────
             cb = rec._cb
             cb.set(0)
-            out_path = assemble(frames, game, cfg, job_id, cb)
+            out_path = assemble(frames, game_enriched, cfg, job_id, cb)
 
             download_url = f"/output/{out_path.name}"
             self._update(

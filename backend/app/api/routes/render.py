@@ -1,6 +1,7 @@
+import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -54,6 +55,29 @@ async def get_render_status(job_id: str):
         message=rec.message,
         download_url=rec.download_url,
     )
+
+
+@router.post(
+    "/upload-music",
+    summary="Upload a background music file",
+    description="Accepts MP3, WAV, OGG. Returns the filename to use in RenderSettings.background_music.",
+)
+async def upload_music(file: UploadFile = File(...)):
+    from app.core.config import settings as cfg
+    allowed = {".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"}
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in allowed:
+        raise HTTPException(status_code=400, detail=f"Unsupported audio format '{suffix}'. Use: {allowed}")
+
+    safe_name = f"upload_{uuid.uuid4().hex[:8]}{suffix}"
+    dest = cfg.ASSETS_DIR / "sounds" / safe_name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Music file too large (max 50 MB).")
+    dest.write_bytes(content)
+    return {"filename": safe_name, "original_name": file.filename, "size_kb": len(content) // 1024}
 
 
 @router.delete(

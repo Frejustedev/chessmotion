@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: RenderSettings = {
   sound_effects: true,
   highlight_last_move: true,
   game_index: 0,
+  commentary_style: "none" as const,
 };
 
 interface Store extends AppState {

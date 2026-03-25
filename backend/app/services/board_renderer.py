@@ -141,6 +141,7 @@ class BoardRenderer:
         result: str = "*",
         white_clock: Optional[str] = None,
         black_clock: Optional[str] = None,
+        comment: Optional[str] = None,
     ) -> Image.Image:
         """
         Render a single board position to a PIL Image.
@@ -195,6 +196,10 @@ class BoardRenderer:
                                   is_top=False,
                                   result=result if self.s.show_result else None)
 
+        # Commentary overlay (shown if settings request it)
+        if self.s.show_comments and comment:
+            self._draw_commentary(canvas, draw, comment)
+
         return canvas
 
     def render_frames_for_game(
@@ -233,6 +238,7 @@ class BoardRenderer:
                 result=result if i == len(moves) - 1 else "*",
                 white_clock=move.clock if i % 2 == 1 else None,
                 black_clock=move.clock if i % 2 == 0 else None,
+                comment=move.comment,
             )
             frames.append(frame)
 
@@ -342,6 +348,44 @@ class BoardRenderer:
             draw.rounded_rectangle([bx_, by_, bx_ + bw, by_ + bh], radius=4, fill=badge_color)
             draw.text((bx_ + 8, by_ + (bh - self._result_fh) // 2),
                       badge_text, fill=(255, 255, 255), font=self._font_result)
+
+    def _draw_commentary(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, text: str) -> None:
+        """
+        Draw a semi-transparent commentary banner at the bottom of the board area.
+        Wraps long text automatically.
+        """
+        avg_char_w = max(6, self._coord_fh // 2)
+        max_chars = max(20, (self.board_px - 12) // avg_char_w)
+        # Simple word-wrap
+        words = text.split()
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            test = f"{current} {word}".strip()
+            if len(test) > max_chars and current:
+                lines.append(current)
+                current = word
+            else:
+                current = test
+        if current:
+            lines.append(current)
+        lines = lines[:3]  # max 3 lines
+
+        line_h = self._coord_fh + 4
+        banner_h = len(lines) * line_h + 8
+        bx = self.eval_w + self.coord_w
+        by = self.header_h + self.coord_w + self.board_px - banner_h
+
+        # Semi-transparent overlay via RGBA paste
+        overlay = Image.new("RGBA", (self.board_px, banner_h), (0, 0, 0, 180))
+        canvas.paste(overlay, (bx, by), overlay)
+
+        draw2 = ImageDraw.Draw(canvas)
+        for j, line in enumerate(lines):
+            draw2.text(
+                (bx + 6, by + 4 + j * line_h),
+                line, fill=(255, 255, 200), font=self._font_coord,
+            )
 
     def _draw_eval_bar(self, draw: ImageDraw.ImageDraw, eval_score: float) -> None:
         """

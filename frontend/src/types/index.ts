@@ -3,6 +3,7 @@ export type OutputFormat = "mp4" | "gif";
 export type BoardTheme = "wood" | "green" | "dark" | "blue" | "purple";
 export type PieceSet = "staunton" | "neo" | "alpha" | "merida";
 export type RenderJobStatus = "queued" | "processing" | "done" | "error";
+export type CommentaryStyle = "none" | "grandmaster" | "casual" | "coach";
 
 // ── Render Settings ─────────────────────────────────────────────────────────────
 export interface RenderSettings {
@@ -21,6 +22,7 @@ export interface RenderSettings {
   sound_effects: boolean;
   highlight_last_move: boolean;
   game_index: number;
+  commentary_style: CommentaryStyle;
 }
 
 // ── Game Data ───────────────────────────────────────────────────────────────────

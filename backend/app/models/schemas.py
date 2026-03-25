@@ -27,6 +27,13 @@ class PieceSet(str, Enum):
 
 # ── Input Models ────────────────────────────────────────────────────────────────
 
+class CommentaryStyle(str, Enum):
+    none        = "none"
+    grandmaster = "grandmaster"
+    casual      = "casual"
+    coach       = "coach"
+
+
 class RenderSettings(BaseModel):
     output_format: OutputFormat = OutputFormat.mp4
     move_delay: float = Field(default=1.0, ge=0.1, le=10.0, description="Seconds between moves")
@@ -39,10 +46,11 @@ class RenderSettings(BaseModel):
     show_comments: bool = True
     show_eval_bar: bool = False
     flip_board: bool = False
-    background_music: Optional[str] = None  # filename from assets or upload path
+    background_music: Optional[str] = None
     sound_effects: bool = True
     highlight_last_move: bool = True
     game_index: int = Field(default=0, ge=0, description="Index for multi-game PGN")
+    commentary_style: CommentaryStyle = CommentaryStyle.none
 
 
 class UrlImportRequest(BaseModel):
