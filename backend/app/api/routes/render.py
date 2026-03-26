@@ -1,12 +1,15 @@
+import io
 import uuid
+import zipfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.models.schemas import (
     GameInfo, RenderSettings, RenderJobResponse, RenderJobStatus,
+    BatchStartBody, BatchStartResponse,
 )
 from app.services.job_queue import render_queue
 
@@ -78,6 +81,67 @@ async def upload_music(file: UploadFile = File(...)):
         raise HTTPException(status_code=413, detail="Music file too large (max 50 MB).")
     dest.write_bytes(content)
     return {"filename": safe_name, "original_name": file.filename, "size_kb": len(content) // 1024}
+
+
+@router.post(
+    "/batch-start",
+    response_model=BatchStartResponse,
+    summary="Queue multiple games for rendering",
+    description="Submits N games with the same settings. Returns list of job_ids.",
+)
+async def batch_start(body: BatchStartBody):
+    if len(body.games) > 100:
+        raise HTTPException(status_code=400, detail="Max 100 games per batch.")
+    job_ids = [render_queue.submit(game, body.settings) for game in body.games]
+    return BatchStartResponse(job_ids=job_ids, total=len(job_ids))
+
+
+@router.get(
+    "/batch-status",
+    summary="Poll status of multiple jobs at once",
+)
+async def batch_status(job_ids: str = Query(..., description="Comma-separated job IDs")):
+    ids = [j.strip() for j in job_ids.split(",") if j.strip()]
+    result = []
+    for jid in ids:
+        rec = render_queue.get(jid)
+        if rec:
+            result.append({
+                "job_id": jid,
+                "status": rec.status.value,
+                "progress": rec.progress,
+                "message": rec.message,
+                "download_url": rec.download_url,
+            })
+    return result
+
+
+@router.get(
+    "/batch-download",
+    summary="Download all done jobs as a ZIP archive",
+)
+async def batch_download(
+    job_ids: str = Query(..., description="Comma-separated job IDs"),
+):
+    ids = [j.strip() for j in job_ids.split(",") if j.strip()]
+    buf = io.BytesIO()
+    added = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for jid in ids:
+            rec = render_queue.get(jid)
+            if rec and rec.status == RenderJobStatus.done and rec.output_path:
+                p = Path(rec.output_path)
+                if p.exists():
+                    zf.write(p, arcname=p.name)
+                    added += 1
+    if added == 0:
+        raise HTTPException(status_code=404, detail="No completed jobs found.")
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=chessmotion_batch.zip"},
+    )
 
 
 @router.delete(

@@ -5,6 +5,21 @@ export type PieceSet = "staunton" | "neo" | "alpha" | "merida";
 export type RenderJobStatus = "queued" | "processing" | "done" | "error";
 export type CommentaryStyle = "none" | "grandmaster" | "casual" | "coach";
 
+export interface PgnParseResult {
+  games: GameInfo[];
+  total: number;
+  limit: number;
+  skip: number;
+}
+
+export interface BatchJobStatus {
+  job_id: string;
+  status: RenderJobStatus;
+  progress: number;
+  message: string;
+  download_url: string | null;
+}
+
 // ── Render Settings ─────────────────────────────────────────────────────────────
 export interface RenderSettings {
   output_format: OutputFormat;

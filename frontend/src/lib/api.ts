@@ -1,15 +1,30 @@
 import axios from "axios";
-import type { GameInfo, RenderJobResponse, RenderSettings } from "@/types";
+import type { GameInfo, RenderJobResponse, RenderSettings, PgnParseResult, BatchJobStatus } from "@/types";
 
 const client = axios.create({ baseURL: "/api", timeout: 30_000 });
 
 // ── Games ────────────────────────────────────────────────────────────────────────
 
-export async function parsePgn(file: File): Promise<GameInfo[]> {
+export async function parsePgn(
+  file: File,
+  limit = 50,
+  skip = 0
+): Promise<PgnParseResult> {
   const form = new FormData();
   form.append("file", file);
-  const { data } = await client.post<GameInfo[]>("/games/parse-pgn", form);
+  const { data } = await client.post<PgnParseResult>(
+    `/games/parse-pgn?limit=${limit}&skip=${skip}`,
+    form
+  );
   return data;
+}
+
+export async function parsePgnPage(
+  file: File,
+  limit: number,
+  skip: number
+): Promise<PgnParseResult> {
+  return parsePgn(file, limit, skip);
 }
 
 export async function importFromUrl(
@@ -43,4 +58,23 @@ export async function pollRenderStatus(jobId: string): Promise<RenderJobResponse
 
 export function getDownloadUrl(jobId: string): string {
   return `/api/render/download/${jobId}`;
+}
+
+export async function startBatchRender(
+  games: GameInfo[],
+  settings: RenderSettings
+): Promise<{ job_ids: string[]; total: number }> {
+  const { data } = await client.post("/render/batch-start", { games, settings });
+  return data;
+}
+
+export async function pollBatchStatus(jobIds: string[]): Promise<BatchJobStatus[]> {
+  const { data } = await client.get<BatchJobStatus[]>(
+    `/render/batch-status?job_ids=${jobIds.join(",")}`
+  );
+  return data;
+}
+
+export function getBatchDownloadUrl(jobIds: string[]): string {
+  return `/api/render/batch-download?job_ids=${jobIds.join(",")}`;
 }

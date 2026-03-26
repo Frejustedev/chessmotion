@@ -102,9 +102,26 @@ class RenderJobStatus(str, Enum):
     error = "error"
 
 
+class PgnParseResult(BaseModel):
+    games: list["GameInfo"]
+    total: int
+    limit: int
+    skip: int
+
+
 class RenderJobResponse(BaseModel):
     job_id: str
     status: RenderJobStatus
     progress: int = Field(default=0, ge=0, le=100)
     message: str = ""
     download_url: Optional[str] = None
+
+
+class BatchStartBody(BaseModel):
+    games: list["GameInfo"]
+    settings: RenderSettings = RenderSettings()
+
+
+class BatchStartResponse(BaseModel):
+    job_ids: list[str]
+    total: int

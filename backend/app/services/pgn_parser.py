@@ -111,25 +111,51 @@ def _game_to_schema(game: chess.pgn.Game, total_games: int = 1) -> GameInfo:
     )
 
 
-def parse_pgn_string(pgn_text: str) -> list[GameInfo]:
-    """Parse a full PGN string (may contain multiple games) and return a list."""
-    stream = io.StringIO(pgn_text)
-    games: list[GameInfo] = []
+def parse_pgn_string(
+    pgn_text: str,
+    limit: int = 200,
+    skip: int = 0,
+) -> tuple[list[GameInfo], int]:
+    """
+    Parse a PGN string, return (games, total_count).
+    Uses streaming to count headers without decoding every move, then
+    fully parses only the requested page.
+    """
+    # Fast pass: count total games by scanning for [Event] tags
+    total = pgn_text.count("\n[Event ") + (1 if pgn_text.lstrip().startswith("[Event ") else 0)
 
-    while True:
+    stream = io.StringIO(pgn_text)
+    collected: list[chess.pgn.Game] = []
+    idx = 0
+
+    while len(collected) < limit:
         game = chess.pgn.read_game(stream)
         if game is None:
             break
-        games.append(game)   # collect raw games first to know total count
+        if idx >= skip:
+            collected.append(game)
+        idx += 1
 
-    total = len(games)
+    # Count remaining if our fast pass was inaccurate
+    if total < idx:
+        total = idx
+        while True:
+            g = chess.pgn.read_game(stream)
+            if g is None:
+                break
+            total += 1
+
     if total == 0:
         raise ValueError("No valid games found in the provided PGN.")
 
-    return [_game_to_schema(g, total_games=total) for g in games]
+    return [_game_to_schema(g, total_games=total) for g in collected], total
 
 
-def parse_pgn_bytes(raw: bytes) -> list[GameInfo]:
+def parse_pgn_bytes(
+    raw: bytes,
+    limit: int = 200,
+    skip: int = 0,
+) -> tuple[list[GameInfo], int]:
     """Accept raw bytes (file upload) and decode to string before parsing."""
     for enc in ("utf-8", "latin-1", "cp1252"):
         try:
@@ -139,4 +165,4 @@ def parse_pgn_bytes(raw: bytes) -> list[GameInfo]:
             continue
     else:
         raise ValueError("Unable to decode PGN file – unsupported encoding.")
-    return parse_pgn_string(text)
+    return parse_pgn_string(text, limit=limit, skip=skip)

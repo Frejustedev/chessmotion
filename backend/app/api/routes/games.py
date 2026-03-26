@@ -1,36 +1,42 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from app.models.schemas import GameInfo, UrlImportRequest
+from app.models.schemas import GameInfo, UrlImportRequest, PgnParseResult
 from app.services.pgn_parser import parse_pgn_bytes
 from app.services.game_importer import import_from_url
 
 router = APIRouter()
 
+_MAX_FILE_MB = 50  # allow large tournament databases
+
 
 @router.post(
     "/parse-pgn",
-    response_model=list[GameInfo],
+    response_model=PgnParseResult,
     summary="Parse an uploaded PGN file",
     description=(
         "Upload a `.pgn` file (single or multi-game). "
-        "Returns a list of normalised GameInfo objects, one per game found."
+        "Returns paginated GameInfo list + total count."
     ),
 )
-async def parse_pgn(file: UploadFile = File(...)):
+async def parse_pgn(
+    file: UploadFile = File(...),
+    limit: int = Query(default=50, ge=1, le=500, description="Max games to return"),
+    skip: int = Query(default=0, ge=0, description="Offset for pagination"),
+):
     if not file.filename or not file.filename.lower().endswith(".pgn"):
         raise HTTPException(status_code=400, detail="Only .pgn files are accepted.")
 
     raw = await file.read()
-    if len(raw) > 10 * 1024 * 1024:  # 10 MB guard
-        raise HTTPException(status_code=413, detail="PGN file too large (max 10 MB).")
+    if len(raw) > _MAX_FILE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"PGN file too large (max {_MAX_FILE_MB} MB).")
 
     try:
-        games = parse_pgn_bytes(raw)
+        games, total = parse_pgn_bytes(raw, limit=limit, skip=skip)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-    return games
+    return PgnParseResult(games=games, total=total, limit=limit, skip=skip)
 
 
 @router.post(

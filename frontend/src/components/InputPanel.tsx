@@ -29,9 +29,12 @@ export default function InputPanel() {
     setError(null);
     setLoading(true);
     try {
-      const games = await parsePgn(file);
-      setGames(games);
-      toast.success(`${games.length} game${games.length > 1 ? "s" : ""} loaded!`);
+      const result = await parsePgn(file, 50, 0);
+      setGames(result.games, result.total, 0);
+      const extra = result.total > result.games.length
+        ? ` — showing first ${result.games.length} of ${result.total}`
+        : "";
+      toast.success(`${result.total} game${result.total > 1 ? "s" : ""} loaded!${extra}`);
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Failed to parse PGN.");
     } finally {

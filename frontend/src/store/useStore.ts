@@ -25,17 +25,24 @@ const DEFAULT_SETTINGS: RenderSettings = {
 };
 
 interface Store extends AppState {
+  // Pagination state
+  totalGames: number;
+  currentPage: number;
+  pageSize: number;
+  pgnFile: File | null;
+
   setInputSource: (s: InputSource) => void;
   setPgnFile: (f: File | null) => void;
   setUrl: (url: string) => void;
-  setGames: (games: GameInfo[]) => void;
+  setGames: (games: GameInfo[], total?: number, page?: number) => void;
   setSelectedGame: (index: number) => void;
   updateSettings: (patch: Partial<RenderSettings>) => void;
   setJob: (job: RenderJobResponse | null) => void;
+  setPage: (page: number) => void;
   reset: () => void;
 }
 
-const INITIAL: AppState = {
+const INITIAL: AppState & { totalGames: number; currentPage: number; pageSize: number } = {
   inputSource: "file",
   pgnFile: null,
   url: "",
@@ -43,6 +50,9 @@ const INITIAL: AppState = {
   gameData: null,
   settings: DEFAULT_SETTINGS,
   job: null,
+  totalGames: 0,
+  currentPage: 0,
+  pageSize: 50,
 };
 
 export const useStore = create<Store>((set, get) => ({
@@ -52,10 +62,12 @@ export const useStore = create<Store>((set, get) => ({
   setPgnFile: (pgnFile) => set({ pgnFile }),
   setUrl: (url) => set({ url }),
 
-  setGames: (games) =>
+  setGames: (games, total?, page?) =>
     set({
       games,
       gameData: games[0] ?? null,
+      totalGames: total ?? games.length,
+      currentPage: page ?? 0,
       settings: { ...get().settings, game_index: 0 },
     }),
 
@@ -70,6 +82,8 @@ export const useStore = create<Store>((set, get) => ({
     set((s) => ({ settings: { ...s.settings, ...patch } })),
 
   setJob: (job) => set({ job }),
+
+  setPage: (page) => set({ currentPage: page }),
 
   reset: () => set({ ...INITIAL }),
 }));
