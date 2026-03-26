@@ -39,7 +39,7 @@ class RenderSettings(BaseModel):
     move_delay: float = Field(default=1.0, ge=0.1, le=10.0, description="Seconds between moves")
     board_theme: BoardTheme = BoardTheme.green
     piece_set: PieceSet = PieceSet.staunton
-    board_size: int = Field(default=800, ge=200, le=2000, description="Board image size in pixels")
+    board_size: int = Field(default=480, ge=200, le=1200, description="Board image size in pixels")
     show_coordinates: bool = True
     show_player_names: bool = True
     show_result: bool = True

@@ -94,23 +94,21 @@ def _build_mp4(
 
     progress.set(5)
 
-    # ── Convert frames to numpy arrays ──────────────────────────────────────────
+    # ── Convert frames to numpy arrays (free PIL images immediately to save RAM) ──
     logger.debug("[VideoEngine] Converting frames to numpy arrays...")
-    np_frames = [np.array(f.convert("RGB")) for f in frames]
-    progress.set(20)
-
-    # ── Build silent video clip ──────────────────────────────────────────────────
-    # Use a higher fps internally then hold each frame for move_delay seconds
     hold_frames = max(1, round(cfg.move_delay * 24))  # 24 fps internal
     internal_fps = 24
 
     expanded: list[np.ndarray] = []
-    for i, arr in enumerate(np_frames):
-        expanded.extend([arr] * hold_frames)
+    for i, frame in enumerate(frames):
+        arr = np.array(frame.convert("RGB"))
+        frames[i] = None  # free PIL image immediately
+        for _ in range(hold_frames):
+            expanded.append(arr)
         if i % max(1, n // 10) == 0:
-            progress.set(20 + int(i / n * 25))
+            progress.set(5 + int(i / n * 30))
+    progress.set(35)
 
-    video_clip = ImageSequenceClip(expanded, fps=internal_fps)
     total_duration = video_clip.duration
     progress.set(50)
 
