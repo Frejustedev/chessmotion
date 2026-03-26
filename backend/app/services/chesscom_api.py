@@ -78,7 +78,8 @@ async def _fetch_single_game(
 
     resp = await client.get(direct_url)
     if resp.status_code == 200 and resp.text.strip().startswith("["):
-        return parse_pgn_string(resp.text)
+        games, _ = parse_pgn_string(resp.text)
+        return games
 
     raise ValueError(
         "Chess.com single-game lookup requires the game's username context. "
@@ -117,8 +118,8 @@ async def _fetch_member_games(
     if not all_pgns:
         raise ValueError(f"No games with PGN data found for '{username}'.")
 
-    combined_pgn = "\n\n".join(all_pgns)
-    return parse_pgn_string(combined_pgn)
+    games, _ = parse_pgn_string("\n\n".join(all_pgns), limit=max_games)
+    return games
 
 
 async def _fetch_tournament_games(
@@ -160,7 +161,8 @@ async def _fetch_tournament_games(
     if not all_pgns:
         raise ValueError("No PGN games found in this Chess.com tournament.")
 
-    return parse_pgn_string("\n\n".join(all_pgns))
+    games, _ = parse_pgn_string("\n\n".join(all_pgns), limit=max_games)
+    return games
 
 
 def _raise_for_status(resp: httpx.Response, platform: str) -> None:

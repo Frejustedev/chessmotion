@@ -59,8 +59,8 @@ async def fetch_game(url: str, max_games: int = 50) -> list[GameInfo]:
     async with httpx.AsyncClient(timeout=30) as client:
         pgn_text = await _fetch_pgn(client, url_type, identifier, max_games)
 
-    games = parse_pgn_string(pgn_text)
-    logger.info(f"[Lichess] Parsed {len(games)} game(s)")
+    games, total = parse_pgn_string(pgn_text, limit=max_games)
+    logger.info(f"[Lichess] Parsed {len(games)}/{total} game(s)")
     return games
 
 

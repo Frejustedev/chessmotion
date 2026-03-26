@@ -160,10 +160,21 @@ class BoardRenderer:
 
         ox = self.eval_w  # x-offset for the coord+board area
 
-        # Header – black player on top (or white if flipped)
+        # Resolve player names / clocks for top (opponent) and bottom (self)
+        top_name   = black_name   if not self.s.flip_board else white_name
+        bot_name   = white_name   if not self.s.flip_board else black_name
+        top_rating = black_rating if not self.s.flip_board else white_rating
+        bot_rating = white_rating if not self.s.flip_board else black_rating
+        top_clock  = black_clock  if not self.s.flip_board else white_clock
+        bot_clock  = white_clock  if not self.s.flip_board else black_clock
+        cap_top    = captured_white if not self.s.flip_board else captured_black
+        cap_bot    = captured_black if not self.s.flip_board else captured_white
+
+        # Header bar – opponent on top
         if self.header_h:
-            top_clock   = black_clock if not self.s.flip_board else white_clock
-            bot_clock   = white_clock if not self.s.flip_board else black_clock
+            self._draw_player_bar(draw, canvas, ox, 0,
+                                  top_name, top_rating, top_clock, is_top=True,
+                                  captured=cap_top if self.s.show_captured_pieces else "")
 
         # Board origin
         bx = ox + self.coord_w
@@ -181,7 +192,7 @@ class BoardRenderer:
 
         # Move arrow (drawn on top of pieces for visibility)
         if self.s.show_move_arrow and last_move_uci and len(last_move_uci) >= 4:
-            self._draw_move_arrow(draw, last_move_uci, bx, by)
+            self._draw_move_arrow(draw, canvas, last_move_uci, bx, by)
 
         # NAG annotation (!!, ?, ??, …)
         if self.s.show_nag and nag and last_move_uci and len(last_move_uci) >= 4:
@@ -191,21 +202,11 @@ class BoardRenderer:
         if self.eval_w and eval_score is not None:
             self._draw_eval_bar(draw, eval_score)
 
-        # Footer – white player at bottom
+        # Footer bar – current player at bottom
         if self.footer_h:
             fy = self.header_h + self.coord_w + self.board_px
-            cap_top = captured_white if not self.s.flip_board else captured_black
-            cap_bot = captured_black if not self.s.flip_board else captured_white
-            self._draw_player_bar(draw, canvas, ox, 0,
-                                  black_name if not self.s.flip_board else white_name,
-                                  black_rating if not self.s.flip_board else white_rating,
-                                  top_clock, is_top=True,
-                                  captured=cap_top if self.s.show_captured_pieces else "")
             self._draw_player_bar(draw, canvas, ox, fy,
-                                  white_name if not self.s.flip_board else black_name,
-                                  white_rating if not self.s.flip_board else black_rating,
-                                  bot_clock if self.header_h else white_clock,
-                                  is_top=False,
+                                  bot_name, bot_rating, bot_clock, is_top=False,
                                   result=result if self.s.show_result else None,
                                   captured=cap_bot if self.s.show_captured_pieces else "")
 
@@ -396,7 +397,7 @@ class BoardRenderer:
         cy = by + row * self.sq + self.sq // 2
         return cx, cy
 
-    def _draw_move_arrow(self, draw: ImageDraw.ImageDraw, uci: str, bx: int, by: int) -> None:
+    def _draw_move_arrow(self, draw: ImageDraw.ImageDraw, canvas: Image.Image, uci: str, bx: int, by: int) -> None:
         """Draw a semi-transparent arrow from source to destination square."""
         import math
         try:
@@ -409,11 +410,10 @@ class BoardRenderer:
         lw = max(4, self.sq // 8)
         arrow_color = (100, 200, 255, 160)
 
-        # Draw on RGBA overlay for transparency
-        overlay = Image.new("RGBA", draw._image.size, (0, 0, 0, 0))
+        # Draw on a separate RGBA overlay then composite — no private attrs needed
+        overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
         od = ImageDraw.Draw(overlay)
 
-        # Shorten line so it doesn't overlap the arrowhead
         dx, dy = x2 - x1, y2 - y1
         dist = math.hypot(dx, dy)
         if dist < 1:
@@ -424,18 +424,17 @@ class BoardRenderer:
 
         od.line([(x1, y1), (lx2, ly2)], fill=arrow_color, width=lw)
 
-        # Arrowhead triangle
         head_len = self.sq * 0.42
         head_w   = self.sq * 0.28
-        px  = x2 - ux * head_len
-        py  = y2 - uy * head_len
-        p1x = px - uy * head_w
-        p1y = py + ux * head_w
-        p2x = px + uy * head_w
-        p2y = py - ux * head_w
+        px_  = x2 - ux * head_len
+        py_  = y2 - uy * head_len
+        p1x  = px_ - uy * head_w
+        p1y  = py_ + ux * head_w
+        p2x  = px_ + uy * head_w
+        p2y  = py_ - ux * head_w
         od.polygon([(x2, y2), (p1x, p1y), (p2x, p2y)], fill=arrow_color)
 
-        draw._image.alpha_composite(overlay)
+        canvas.alpha_composite(overlay)
 
     def _draw_nag(self, draw: ImageDraw.ImageDraw, nag: str, uci: str, bx: int, by: int) -> None:
         """Draw NAG symbol (!! / ? / ??) near the destination square."""

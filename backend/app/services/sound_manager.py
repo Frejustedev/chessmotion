@@ -114,15 +114,16 @@ def get_check_sound() -> Path:
 def get_background_music(user_path: Optional[str] = None) -> Optional[Path]:
     """
     Return path to background music file.
-    user_path: user-supplied file name (relative to assets/sounds/) or absolute path.
-    Returns None if no music requested.
+    user_path must be a bare filename (no path separators) resolved inside
+    assets/sounds/. Absolute paths and directory traversal are rejected.
     """
     if not user_path:
         return None
-    p = Path(user_path)
-    if p.is_absolute() and p.exists():
-        return p
-    candidate = get_sound_dir() / user_path
+    # Security: reject any path separator to prevent directory traversal
+    if any(sep in user_path for sep in ("/", "\\", "..")):
+        logger.warning(f"[Sound] Rejected suspicious music path: {user_path!r}")
+        return None
+    candidate = get_sound_dir() / Path(user_path).name  # .name strips any remaining dirs
     if candidate.exists():
         return candidate
     logger.warning(f"[Sound] Background music not found: {user_path}")

@@ -102,7 +102,8 @@ class RenderQueue:
 
     def _run(self, job_id: str, game: GameInfo, cfg: RenderSettings) -> None:
         """Worker: render frames + assemble video. Runs in a thread."""
-        rec = self._jobs.get(job_id)
+        with self._lock:
+            rec = self._jobs.get(job_id)
         if rec is None:
             return
 

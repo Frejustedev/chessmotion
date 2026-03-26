@@ -94,24 +94,25 @@ def _build_mp4(
 
     progress.set(5)
 
-    # ── Convert frames to numpy arrays ──────────────────────────────────────────
+    # ── Convert frames to numpy arrays (lazy – avoids OOM on long games) ─────────
     logger.debug("[VideoEngine] Converting frames to numpy arrays...")
     np_frames = [np.array(f.convert("RGB")) for f in frames]
     progress.set(20)
 
-    # ── Build silent video clip ──────────────────────────────────────────────────
-    # Use a higher fps internally then hold each frame for move_delay seconds
-    hold_frames = max(1, round(cfg.move_delay * 24))  # 24 fps internal
+    # ── Build silent video clip via make_frame callable ───────────────────────────
+    # Using make_frame avoids expanding N frames × hold_frames copies in RAM.
+    # Each frame is held for move_delay seconds; internal playback at 24 fps.
     internal_fps = 24
+    hold_frames  = max(1, round(cfg.move_delay * internal_fps))
+    total_duration = n * cfg.move_delay
 
-    expanded: list[np.ndarray] = []
-    for i, arr in enumerate(np_frames):
-        expanded.extend([arr] * hold_frames)
-        if i % max(1, n // 10) == 0:
-            progress.set(20 + int(i / n * 25))
+    def make_frame(t: float) -> np.ndarray:
+        idx = min(int(t / cfg.move_delay), n - 1)
+        return np_frames[idx]
 
-    video_clip = ImageSequenceClip(expanded, fps=internal_fps)
-    total_duration = video_clip.duration
+    from moviepy.editor import VideoClip
+    video_clip = VideoClip(make_frame, duration=total_duration)
+    video_clip = video_clip.set_fps(internal_fps)
     progress.set(50)
 
     # ── Build audio ───────────────────────────────────────────────────────────────
