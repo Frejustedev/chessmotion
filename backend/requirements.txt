@@ -4,7 +4,7 @@ uvicorn[standard]==0.29.0
 python-multipart==0.0.9
 
 # ── Chess Logic ─────────────────────────────────────────────────────────────────
-python-chess>=1.9.0,<2.0
+python-chess==1.10.0
 
 # ── Image Rendering ─────────────────────────────────────────────────────────────
 Pillow==10.3.0
@@ -25,4 +25,5 @@ pydantic-settings==2.2.1
 python-dotenv==1.0.1
 loguru==0.7.2
 
-# Stockfish binary is installed via apt in the Dockerfile (chess.engine used directly)
+# ── Stockfish (optional – evaluation bar) ───────────────────────────────────────
+stockfish==3.28.0

@@ -1,13 +1,7 @@
 import axios from "axios";
 import type { GameInfo, RenderJobResponse, RenderSettings } from "@/types";
 
-// In production (NEXT_PUBLIC_API_URL set), call the backend directly.
-// In local dev, rely on Next.js rewrites proxy (/api/* → localhost:8000).
-const BASE = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-  : "/api";
-
-const client = axios.create({ baseURL: BASE, timeout: 30_000 });
+const client = axios.create({ baseURL: "/api", timeout: 30_000 });
 
 // ── Games ────────────────────────────────────────────────────────────────────────
 
@@ -48,6 +42,5 @@ export async function pollRenderStatus(jobId: string): Promise<RenderJobResponse
 }
 
 export function getDownloadUrl(jobId: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
-  return `${base}/api/render/download/${jobId}`;
+  return `/api/render/download/${jobId}`;
 }
