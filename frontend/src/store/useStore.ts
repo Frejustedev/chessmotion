@@ -18,6 +18,10 @@ const DEFAULT_SETTINGS: RenderSettings = {
   highlight_last_move: true,
   game_index: 0,
   commentary_style: "none" as const,
+  show_move_arrow: true,
+  show_nag: true,
+  show_captured_pieces: true,
+  show_opening_name: true,
 };
 
 interface Store extends AppState {

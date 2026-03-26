@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Film, Clock, Grid3x3, Volume2, BarChart2, MessageSquare, Upload, Loader2, CheckCircle2 } from "lucide-react";
+import { Film, Clock, Grid3x3, Volume2, BarChart2, MessageSquare, Upload, Loader2, CheckCircle2, Swords } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useStore } from "@/store/useStore";
@@ -112,6 +112,16 @@ export default function SettingsPanel() {
             <ToggleRow label="Show on video frames" checked={settings.show_comments} onChange={(v) => updateSettings({ show_comments: v })} />
           </div>
         )}
+      </Section>
+
+      {/* Chess Features */}
+      <Section icon={<Swords size={14} />} title="Chess Features">
+        <div className="flex flex-col gap-2">
+          <ToggleRow label="Move arrow (source → destination)" checked={settings.show_move_arrow} onChange={(v) => updateSettings({ show_move_arrow: v })} />
+          <ToggleRow label="NAG symbols (!!, ?, ??, !?…)" checked={settings.show_nag} onChange={(v) => updateSettings({ show_nag: v })} />
+          <ToggleRow label="Captured pieces tray" checked={settings.show_captured_pieces} onChange={(v) => updateSettings({ show_captured_pieces: v })} />
+          <ToggleRow label="Opening name (ECO, first 6 moves)" checked={settings.show_opening_name} onChange={(v) => updateSettings({ show_opening_name: v })} />
+        </div>
       </Section>
 
       {/* Annotations */}

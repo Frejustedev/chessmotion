@@ -142,6 +142,10 @@ class BoardRenderer:
         white_clock: Optional[str] = None,
         black_clock: Optional[str] = None,
         comment: Optional[str] = None,
+        nag: Optional[str] = None,
+        opening_name: Optional[str] = None,
+        captured_white: str = "",  # pieces white has captured (black pieces)
+        captured_black: str = "",  # pieces black has captured (white pieces)
     ) -> Image.Image:
         """
         Render a single board position to a PIL Image.
@@ -151,22 +155,15 @@ class BoardRenderer:
         board = chess.Board(fen)
         last_squares = _uci_to_squares(last_move_uci)
 
-        canvas = Image.new("RGB", (self.total_w, self.total_h), self.theme["bg"])
-        draw = ImageDraw.Draw(canvas)
+        canvas = Image.new("RGBA", (self.total_w, self.total_h), self.theme["bg"] + (255,))
+        draw = ImageDraw.Draw(canvas, "RGBA")
 
         ox = self.eval_w  # x-offset for the coord+board area
 
         # Header – black player on top (or white if flipped)
         if self.header_h:
-            top_name    = black_name if not self.s.flip_board else white_name
-            top_rating  = white_rating if self.s.flip_board else None
-            bot_name    = white_name if not self.s.flip_board else black_name
-            bot_rating  = white_rating if not self.s.flip_board else None
             top_clock   = black_clock if not self.s.flip_board else white_clock
             bot_clock   = white_clock if not self.s.flip_board else black_clock
-            self._draw_player_bar(draw, canvas, ox, 0,
-                                  top_name, black_rating if not self.s.flip_board else white_rating,
-                                  top_clock, is_top=True)
 
         # Board origin
         bx = ox + self.coord_w
@@ -182,6 +179,14 @@ class BoardRenderer:
         # Pieces
         self._draw_pieces(canvas, board, bx, by)
 
+        # Move arrow (drawn on top of pieces for visibility)
+        if self.s.show_move_arrow and last_move_uci and len(last_move_uci) >= 4:
+            self._draw_move_arrow(draw, last_move_uci, bx, by)
+
+        # NAG annotation (!!, ?, ??, …)
+        if self.s.show_nag and nag and last_move_uci and len(last_move_uci) >= 4:
+            self._draw_nag(draw, nag, last_move_uci, bx, by)
+
         # Eval bar
         if self.eval_w and eval_score is not None:
             self._draw_eval_bar(draw, eval_score)
@@ -189,18 +194,30 @@ class BoardRenderer:
         # Footer – white player at bottom
         if self.footer_h:
             fy = self.header_h + self.coord_w + self.board_px
+            cap_top = captured_white if not self.s.flip_board else captured_black
+            cap_bot = captured_black if not self.s.flip_board else captured_white
+            self._draw_player_bar(draw, canvas, ox, 0,
+                                  black_name if not self.s.flip_board else white_name,
+                                  black_rating if not self.s.flip_board else white_rating,
+                                  top_clock, is_top=True,
+                                  captured=cap_top if self.s.show_captured_pieces else "")
             self._draw_player_bar(draw, canvas, ox, fy,
                                   white_name if not self.s.flip_board else black_name,
                                   white_rating if not self.s.flip_board else black_rating,
                                   bot_clock if self.header_h else white_clock,
                                   is_top=False,
-                                  result=result if self.s.show_result else None)
+                                  result=result if self.s.show_result else None,
+                                  captured=cap_bot if self.s.show_captured_pieces else "")
+
+        # Opening name – shown on first 6 frames
+        if self.s.show_opening_name and opening_name and move_number is not None and move_number <= 6:
+            self._draw_opening_name(canvas, opening_name)
 
         # Commentary overlay (shown if settings request it)
         if self.s.show_comments and comment:
             self._draw_commentary(canvas, draw, comment)
 
-        return canvas
+        return canvas.convert("RGB")
 
     def render_frames_for_game(
         self,
@@ -211,12 +228,14 @@ class BoardRenderer:
         black_rating: Optional[int] = None,
         result: str = "*",
         starting_fen: str = chess.STARTING_FEN,
+        opening_name: Optional[str] = None,
     ) -> list[Image.Image]:
         """
         Render one frame per position: starting position + one per move.
         Returns len(moves)+1 frames.
         """
         frames: list[Image.Image] = []
+        cap_tracker = _CaptureTracker(starting_fen)
 
         # Frame 0 – starting position
         frames.append(self.render_frame(
@@ -224,10 +243,12 @@ class BoardRenderer:
             white_name=white_name, black_name=black_name,
             white_rating=white_rating, black_rating=black_rating,
             result="*",
+            opening_name=opening_name,
+            move_number=0,
         ))
 
-        prev_uci = None
         for i, move in enumerate(moves):
+            cw, cb = cap_tracker.push(move.uci)
             frame = self.render_frame(
                 fen=move.fen_after,
                 last_move_uci=move.uci,
@@ -239,6 +260,10 @@ class BoardRenderer:
                 white_clock=move.clock if i % 2 == 1 else None,
                 black_clock=move.clock if i % 2 == 0 else None,
                 comment=move.comment,
+                nag=move.nag,
+                opening_name=opening_name,
+                captured_white=cw,
+                captured_black=cb,
             )
             frames.append(frame)
 
@@ -313,10 +338,10 @@ class BoardRenderer:
         ox: int, oy: int,
         name: str, rating: Optional[int], clock: Optional[str],
         is_top: bool, result: Optional[str] = None,
+        captured: str = "",
     ) -> None:
         bar_w = self.total_w - ox
         bar_h = self.header_h
-        # Background
         bar_color = tuple(max(0, c - 15) for c in self.theme["bg"])
         draw.rectangle([ox, oy, ox + bar_w, oy + bar_h], fill=bar_color)
 
@@ -327,6 +352,16 @@ class BoardRenderer:
         tx = ox + self.coord_w + 8
         ty = oy + (bar_h - self._header_fh) // 2
         draw.text((tx, ty), display, fill=self.theme["text"], font=self._font_header)
+
+        # Captured pieces (small symbols)
+        if captured:
+            cap_x = tx + int(draw.textlength(display, font=self._font_header)) + 12
+            cap_fh = max(10, self._header_fh - 4)
+            try:
+                cap_font = self._load_font(cap_fh)
+            except Exception:
+                cap_font = self._font_coord
+            draw.text((cap_x, ty + 2), captured, fill=(180, 180, 180), font=cap_font)
 
         # Clock
         if clock:
@@ -348,6 +383,99 @@ class BoardRenderer:
             draw.rounded_rectangle([bx_, by_, bx_ + bw, by_ + bh], radius=4, fill=badge_color)
             draw.text((bx_ + 8, by_ + (bh - self._result_fh) // 2),
                       badge_text, fill=(255, 255, 255), font=self._font_result)
+
+    def _sq_center(self, sq: int, bx: int, by: int) -> tuple[int, int]:
+        """Return pixel center of a board square (0=a1 … 63=h8)."""
+        file = chess.square_file(sq)
+        rank = chess.square_rank(sq)
+        if self.s.flip_board:
+            col, row = 7 - file, rank
+        else:
+            col, row = file, 7 - rank
+        cx = bx + col * self.sq + self.sq // 2
+        cy = by + row * self.sq + self.sq // 2
+        return cx, cy
+
+    def _draw_move_arrow(self, draw: ImageDraw.ImageDraw, uci: str, bx: int, by: int) -> None:
+        """Draw a semi-transparent arrow from source to destination square."""
+        import math
+        try:
+            move = chess.Move.from_uci(uci)
+        except Exception:
+            return
+        x1, y1 = self._sq_center(move.from_square, bx, by)
+        x2, y2 = self._sq_center(move.to_square, bx, by)
+
+        lw = max(4, self.sq // 8)
+        arrow_color = (100, 200, 255, 160)
+
+        # Draw on RGBA overlay for transparency
+        overlay = Image.new("RGBA", draw._image.size, (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+
+        # Shorten line so it doesn't overlap the arrowhead
+        dx, dy = x2 - x1, y2 - y1
+        dist = math.hypot(dx, dy)
+        if dist < 1:
+            return
+        ux, uy = dx / dist, dy / dist
+        tip_offset = self.sq * 0.36
+        lx2, ly2 = x2 - ux * tip_offset, y2 - uy * tip_offset
+
+        od.line([(x1, y1), (lx2, ly2)], fill=arrow_color, width=lw)
+
+        # Arrowhead triangle
+        head_len = self.sq * 0.42
+        head_w   = self.sq * 0.28
+        px  = x2 - ux * head_len
+        py  = y2 - uy * head_len
+        p1x = px - uy * head_w
+        p1y = py + ux * head_w
+        p2x = px + uy * head_w
+        p2y = py - ux * head_w
+        od.polygon([(x2, y2), (p1x, p1y), (p2x, p2y)], fill=arrow_color)
+
+        draw._image.alpha_composite(overlay)
+
+    def _draw_nag(self, draw: ImageDraw.ImageDraw, nag: str, uci: str, bx: int, by: int) -> None:
+        """Draw NAG symbol (!! / ? / ??) near the destination square."""
+        try:
+            move = chess.Move.from_uci(uci)
+        except Exception:
+            return
+        cx, cy = self._sq_center(move.to_square, bx, by)
+
+        nag_colors = {
+            "!!": (80, 210, 80),   "!": (100, 200, 100),
+            "??": (230, 60, 60),   "?": (220, 100, 100),
+            "!?": (220, 180, 50),  "?!": (200, 140, 60),
+        }
+        color = nag_colors.get(nag, (180, 180, 255))
+        size  = max(12, self.sq // 3)
+        font  = self._load_font(size, bold=True)
+        r     = size // 2 + 4
+        ox_   = cx + self.sq // 4
+        oy_   = cy - self.sq // 4
+
+        draw.ellipse([ox_ - r, oy_ - r, ox_ + r, oy_ + r], fill=color)
+        draw.text((ox_, oy_), nag, fill=(255, 255, 255), font=font, anchor="mm")
+
+    def _draw_opening_name(self, canvas: Image.Image, opening_name: str) -> None:
+        """Semi-transparent banner at the top of the board showing the opening name."""
+        bx = self.eval_w + self.coord_w
+        by = self.header_h + self.coord_w
+        max_w = self.board_px - 12
+
+        font  = self._load_font(max(11, self.sq // 5))
+        fh    = self._font_height(font)
+        # Clip to fit
+        text = opening_name[:55] + ("…" if len(opening_name) > 55 else "")
+
+        banner_h = fh + 10
+        overlay = Image.new("RGBA", (max_w, banner_h), (0, 0, 0, 165))
+        canvas.paste(overlay, (bx, by), overlay)
+        d = ImageDraw.Draw(canvas)
+        d.text((bx + 6, by + 5), text, fill=(255, 230, 120), font=font)
 
     def _draw_commentary(self, canvas: Image.Image, draw: ImageDraw.ImageDraw, text: str) -> None:
         """
@@ -449,6 +577,54 @@ def _uci_to_squares(uci: Optional[str]) -> set[int]:
         return {move.from_square, move.to_square}
     except Exception:
         return set()
+
+
+class _CaptureTracker:
+    """
+    Tracks which pieces have been captured after each move.
+    Returns unicode piece symbols for display next to player names.
+    """
+    # Value order for sorting captured pieces display
+    _ORDER = "QRRBBBNNNNPPPPPPPP"
+    _PIECE_UNICODE = {"P": "♟", "N": "♞", "B": "♝", "R": "♜", "Q": "♛",
+                      "p": "♙", "n": "♘", "b": "♗", "r": "♖", "q": "♕"}
+
+    def __init__(self, starting_fen: str):
+        self._board = chess.Board(starting_fen)
+        # Captured by white (black pieces taken) and by black (white pieces taken)
+        self._captured_by_white: list[str] = []
+        self._captured_by_black: list[str] = []
+
+    def push(self, uci: str) -> tuple[str, str]:
+        """Push a move and return (captured_by_white_str, captured_by_black_str)."""
+        try:
+            move = chess.Move.from_uci(uci)
+            is_white_move = self._board.turn == chess.WHITE
+
+            # En passant
+            if self._board.is_en_passant(move):
+                if is_white_move:
+                    self._captured_by_white.append("p")
+                else:
+                    self._captured_by_black.append("P")
+            elif self._board.is_capture(move):
+                victim = self._board.piece_at(move.to_square)
+                if victim:
+                    sym = victim.symbol()
+                    if is_white_move:
+                        self._captured_by_white.append(sym)  # black piece (lowercase)
+                    else:
+                        self._captured_by_black.append(sym)  # white piece (uppercase)
+
+            self._board.push(move)
+        except Exception:
+            pass
+
+        return self._format(self._captured_by_white), self._format(self._captured_by_black)
+
+    def _format(self, pieces: list[str]) -> str:
+        sorted_pieces = sorted(pieces, key=lambda s: -"QRBN".index(s.upper()) if s.upper() in "QRBN" else 99)
+        return "".join(self._PIECE_UNICODE.get(p, p) for p in sorted_pieces)
 
 
 def _format_eval(cp: float) -> str:

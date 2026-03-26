@@ -24,6 +24,24 @@ def _clean_comment(comment: str) -> Optional[str]:
     return cleaned if cleaned else None
 
 
+# NAG code → display symbol
+_NAG_SYMBOLS: dict[int, str] = {
+    1: "!",   2: "?",   3: "!!",  4: "??",
+    5: "!?",  6: "?!",  7: "□",   10: "=",
+    13: "∞",  14: "⩲",  15: "⩱",  16: "±",
+    17: "∓",  18: "+−", 19: "−+",
+}
+
+
+def _nag_symbol(nags: set[int]) -> Optional[str]:
+    """Return the most important NAG symbol, priority: !!/??/?!/!?/!/? """
+    priority = [3, 4, 5, 6, 1, 2, 18, 19, 16, 17, 14, 15, 13, 10]
+    for n in priority:
+        if n in nags:
+            return _NAG_SYMBOLS[n]
+    return None
+
+
 def _node_to_move(node: chess.pgn.ChildNode, board_before: chess.Board) -> MoveInfo:
     """Convert a pgn ChildNode to a MoveInfo, then push the move onto board_before."""
     move = node.move
@@ -36,6 +54,7 @@ def _node_to_move(node: chess.pgn.ChildNode, board_before: chess.Board) -> MoveI
     raw_comment = node.comment or ""
     clock = _extract_clock(raw_comment)
     comment = _clean_comment(raw_comment)
+    nag = _nag_symbol(node.nags)
 
     return MoveInfo(
         san=san,
@@ -43,6 +62,7 @@ def _node_to_move(node: chess.pgn.ChildNode, board_before: chess.Board) -> MoveI
         fen_after=fen_after,
         comment=comment,
         clock=clock,
+        nag=nag,
     )
 
 

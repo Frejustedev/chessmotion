@@ -23,6 +23,10 @@ export interface RenderSettings {
   highlight_last_move: boolean;
   game_index: number;
   commentary_style: CommentaryStyle;
+  show_move_arrow: boolean;
+  show_nag: boolean;
+  show_captured_pieces: boolean;
+  show_opening_name: boolean;
 }
 
 // ── Game Data ───────────────────────────────────────────────────────────────────

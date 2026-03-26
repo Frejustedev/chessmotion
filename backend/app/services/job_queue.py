@@ -157,6 +157,7 @@ class RenderQueue:
                 black_rating=game.black.rating,
                 result=game.result,
                 starting_fen=game.starting_fen,
+                opening_name=game.opening,
             )
             self._update(job_id, progress=30, message="Assembling video...")
 

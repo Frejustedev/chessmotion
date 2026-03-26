@@ -51,6 +51,10 @@ class RenderSettings(BaseModel):
     highlight_last_move: bool = True
     game_index: int = Field(default=0, ge=0, description="Index for multi-game PGN")
     commentary_style: CommentaryStyle = CommentaryStyle.none
+    show_move_arrow: bool = True
+    show_nag: bool = True
+    show_captured_pieces: bool = True
+    show_opening_name: bool = True
 
 
 class UrlImportRequest(BaseModel):
@@ -73,6 +77,7 @@ class MoveInfo(BaseModel):
     comment: Optional[str] = None
     eval_score: Optional[float] = None  # centipawns, populated if stockfish enabled
     clock: Optional[str] = None
+    nag: Optional[str] = None           # e.g. "!!", "?", "!?" from PGN annotations
 
 
 class GameInfo(BaseModel):
